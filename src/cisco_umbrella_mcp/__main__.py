@@ -12,7 +12,10 @@ def _build_http_app(mcp, settings):
     from starlette.routing import Mount, Route
 
     async def health(_: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok", "transport": "http", "auth_mode": settings.auth_mode})
+        # SOP §1.1: must be a pure local liveness probe returning exactly
+        # {"status": "ok"} — no extra fields, and never dependent on the
+        # upstream Umbrella API being reachable.
+        return JSONResponse({"status": "ok"})
 
     mcp_app = mcp.streamable_http_app()  # Starlette app owning the session-manager lifespan
     mounted = GatewayTokenMiddleware(mcp_app, settings) if settings.auth_mode == "gateway" else mcp_app
