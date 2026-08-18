@@ -4,6 +4,19 @@ Cisco Umbrella MCP Service — a stateless HTTP MCP server wrapping the [Cisco U
 
 **Tech stack:** Python 3.12 + uv + FastMCP (Starlette/Uvicorn)
 
+## When would an agent use this
+
+Cisco Umbrella protects a customer's network at the DNS/web layer — it blocks malicious domains, filters web content by category, and logs network activity. An agent should reach for this MCP for requests like:
+
+- "Has this domain been queried or blocked on this customer's network recently?" → `cisco_umbrella_get_activity_dns`
+- "What web categories/URLs are being filtered or proxied for this customer?" → `cisco_umbrella_get_activity_proxy`
+- "Any firewall allows/blocks for this customer's network in the last day?" → `cisco_umbrella_get_activity_firewall`
+- "Did a file that looked clean later get flagged as malware?" → `cisco_umbrella_get_activity_amp_retrospective`
+- "List this customer's roaming laptops and their last sync/status" → `cisco_umbrella_list_roaming_computers`
+- "List the customer orgs we manage under Cisco Umbrella" / "What's our Umbrella package usage across customers?" → `cisco_umbrella_list_customers`, `cisco_umbrella_get_providers_console`
+
+**Caveat:** this credential set is a Managed Provider (MSSP) root-org key, not a per-customer credential, so the per-customer activity/device tools above may come back empty in practice — see [Known Gaps](#known-gaps) below for the verified details.
+
 ## Authentication method note
 
 Cisco Umbrella's classic REST API supports the **OAuth2 client_credentials grant** — a pure server-to-server exchange, no user browser redirect. An admin creates an API Key + Key Secret pair in the Umbrella dashboard (Admin > API Keys), and this service exchanges that pair for a short-lived (1 hour) bearer token on every call (no refresh token, so no cross-request caching — same "re-login every call" pattern as `covedataprotection-mcp`/`webroot-mcp`/`logmein-mcp`).
