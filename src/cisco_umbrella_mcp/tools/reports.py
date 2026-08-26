@@ -4,7 +4,7 @@ Tool naming convention: cisco_umbrella_<action>_<resource>
 """
 
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -31,8 +31,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             ),
         ],
         to: Annotated[str, Field(description="Required. End of the time range. Same accepted formats as from_.")],
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
         domains: Annotated[str | None, Field(description="Comma-separated domain filter.")] = None,
         categories: Annotated[str | None, Field(description="Comma-separated content category ID filter.")] = None,
         identityids: Annotated[
@@ -86,8 +88,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             ),
         ],
         to: Annotated[str, Field(description="Required. End of the time range. Same accepted formats as from_.")],
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
         domains: Annotated[str | None, Field(description="Comma-separated domain filter.")] = None,
         urls: Annotated[str | None, Field(description="Comma-separated URL filter.")] = None,
         categories: Annotated[str | None, Field(description="Comma-separated content category ID filter.")] = None,
@@ -143,8 +147,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             ),
         ],
         to: Annotated[str, Field(description="Required. End of the time range. Same accepted formats as from_.")],
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
         identityids: Annotated[
             str | None, Field(description="Comma-separated identity (e.g. network tunnel) ID filter.")
         ] = None,
@@ -196,8 +202,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             ),
         ],
         to: Annotated[str, Field(description="Required. End of the time range. Same accepted formats as from_.")],
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
         ampdisposition: Annotated[
             str | None, Field(description='Filter by AMP disposition, e.g. "malicious".')
         ] = None,
@@ -234,8 +242,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_roaming_computers(
-        page: Annotated[int, Field(description="Page number (default 1).")] = 1,
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
+        page: Annotated[int, Field(description="Page number (default 1).", ge=1)] = 1,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
         name: Annotated[str | None, Field(description="Filter by computer name (partial match).")] = None,
         status: Annotated[str | None, Field(description="Filter by status.")] = None,
         swg_status: Annotated[
@@ -298,8 +308,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             str | None, Field(description="Comma-separated application category ID filter.")
         ] = None,
         subcategory: Annotated[str | None, Field(description="Filter by application subcategory.")] = None,
-        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).")] = None,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).", ge=1)] = None,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
     ) -> str:
         """List discovered cloud applications (App Discovery).
 
@@ -337,12 +347,15 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
         identity: Annotated[
             str | None, Field(description="Filter by identity (e.g. roaming computer or network) ID.")
         ] = None,
-        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).")] = None,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).", ge=1)] = None,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
         sort: Annotated[
-            str | None, Field(description='Sort field — "firstDetected" or "lastDetected".')
+            Literal["firstDetected", "lastDetected"] | None,
+            Field(description='Sort field — "firstDetected" or "lastDetected".'),
         ] = None,
-        order: Annotated[str | None, Field(description='Sort order — "asc" or "desc".')] = None,
+        order: Annotated[
+            Literal["asc", "desc"] | None, Field(description='Sort order — "asc" or "desc".')
+        ] = None,
     ) -> str:
         """List discovered network protocols (App Discovery).
 
@@ -373,8 +386,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_application_categories(
-        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).")] = None,
-        offset: Annotated[int | None, Field(description="Pagination offset.")] = None,
+        limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).", ge=1)] = None,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
     ) -> str:
         """List application categories (App Discovery).
 
@@ -401,10 +414,17 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_customers(
-        page: Annotated[int, Field(description="Page number (default 1).")] = 1,
-        limit: Annotated[int, Field(description="Max results per page (default 100, hard cap 200).")] = 100,
+        page: Annotated[int, Field(description="Page number (default 1).", ge=1)] = 1,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
     ) -> str:
-        """List customer organizations under this Umbrella Managed Provider (MSP) account."""
+        """List customer organizations under this Umbrella Managed Provider (MSP) account.
+
+        Returns the full roster with names/details. If the caller only
+        needs a total count, use cisco_umbrella_get_providers_console's
+        customerCount field instead — it's a single cheap call, no paging.
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
