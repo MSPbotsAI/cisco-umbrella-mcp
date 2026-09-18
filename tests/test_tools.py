@@ -99,12 +99,9 @@ def test_error_envelope_mapping(status_code, expected_code, expected_retryable):
 
 
 @pytest.mark.asyncio
-async def test_customer_scope_travels_as_a_header_not_a_query_param():
-    """organization_id becomes X-Umbrella-OrgId, never a query parameter.
-
-    Omitting the header would silently run the call at the parent org's
-    scope and return a well-formed 200 holding nothing — indistinguishable
-    downstream from "this customer had no activity this month".
+async def test_customer_scope_reaches_the_client_not_the_query_string():
+    """organization_id is handed to the client as scope, never as a query
+    parameter — Umbrella has no such query parameter.
     """
     from mcp.server.fastmcp import FastMCP
 
@@ -113,10 +110,10 @@ async def test_customer_scope_travels_as_a_header_not_a_query_param():
     captured = {}
 
     class _StubClient:
-        async def get(self, path, params=None, extra_headers=None):
+        async def get(self, path, params=None, organization_id=None):
             captured["path"] = path
             captured["params"] = params
-            captured["extra_headers"] = extra_headers
+            captured["organization_id"] = organization_id
             return {"data": []}
 
     mcp = FastMCP(name="test")
@@ -126,15 +123,19 @@ async def test_customer_scope_travels_as_a_header_not_a_query_param():
         {"organization_id": "1234567", "from_": "-30days", "to": "now"},
     )
     assert captured["path"] == "/reports/v2/summaries-by-category"
-    assert captured["extra_headers"] == {"X-Umbrella-OrgId": "1234567"}
+    assert captured["organization_id"] == "1234567"
     assert "organization_id" not in captured["params"]
 
 
 @pytest.mark.asyncio
-async def test_authorization_header_cannot_be_overridden_by_extra_headers():
-    """extra_headers is merged beneath Authorization, which stays
-    authoritative — a caller must not be able to substitute its own
-    credential for the one minted from this tenant's key/secret.
+async def test_org_scope_is_applied_at_token_mint_not_on_the_business_request():
+    """X-Umbrella-OrgId only works on POST /auth/v2/token.
+
+    Verified live 2026-09-18 against a Managed Provider account: the same
+    header on the business request returns 200 with an empty data array,
+    indistinguishable from "this customer had no activity". Umbrella
+    instead mints a token whose sub claim is org/<id>/client/<key>. If this
+    test is ever loosened, that silent-empty failure mode comes back.
     """
     import httpx
 
@@ -145,20 +146,47 @@ async def test_authorization_header_cannot_be_overridden_by_extra_headers():
     async def fake_request_with_retry(method, url, *, headers, params=None, data=None):
         captured.setdefault("calls", []).append((url, dict(headers)))
         if url == api_client.TOKEN_URL:
-            return httpx.Response(200, json={"access_token": "minted-token"})
+            return httpx.Response(200, json={"access_token": "scoped-token"})
         return httpx.Response(200, json={"data": []})
 
     original = api_client._request_with_retry
     api_client._request_with_retry = fake_request_with_retry
     try:
         client = api_client.UmbrellaClient("key", "secret")
-        await client.get(
-            "/reports/v2/categories",
-            extra_headers={"X-Umbrella-OrgId": "1234567", "Authorization": "Bearer attacker"},
-        )
+        await client.get("/reports/v2/categories", organization_id="1234567")
     finally:
         api_client._request_with_retry = original
 
-    _, business_headers = captured["calls"][-1]
-    assert business_headers["Authorization"] == "Bearer minted-token"
-    assert business_headers["X-Umbrella-OrgId"] == "1234567"
+    (token_url, token_headers), (business_url, business_headers) = captured["calls"]
+    assert token_url == api_client.TOKEN_URL
+    assert token_headers["X-Umbrella-OrgId"] == "1234567"
+    assert "X-Umbrella-OrgId" not in business_headers
+    assert business_headers["Authorization"] == "Bearer scoped-token"
+
+
+@pytest.mark.asyncio
+async def test_provider_level_calls_mint_an_unscoped_token():
+    """Without organization_id the token stays at provider scope — that is
+    what cisco_umbrella_list_customers needs to enumerate customers.
+    """
+    import httpx
+
+    from cisco_umbrella_mcp import api_client
+
+    captured = {}
+
+    async def fake_request_with_retry(method, url, *, headers, params=None, data=None):
+        captured.setdefault("calls", []).append((url, dict(headers)))
+        if url == api_client.TOKEN_URL:
+            return httpx.Response(200, json={"access_token": "parent-token"})
+        return httpx.Response(200, json={"data": []})
+
+    original = api_client._request_with_retry
+    api_client._request_with_retry = fake_request_with_retry
+    try:
+        await api_client.UmbrellaClient("key", "secret").get("/admin/v2/managed/customers")
+    finally:
+        api_client._request_with_retry = original
+
+    _, token_headers = captured["calls"][0]
+    assert "X-Umbrella-OrgId" not in token_headers

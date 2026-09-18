@@ -140,15 +140,28 @@ class UmbrellaClient:
         self._api_key = api_key
         self._key_secret = key_secret
 
-    async def _login(self) -> str:
+    async def _login(self, organization_id: str | None = None) -> str:
+        """Exchange the key/secret for an access token.
+
+        With organization_id, X-Umbrella-OrgId goes on this exchange and
+        Umbrella mints a token scoped to that child organization — its sub
+        claim becomes org/<organization_id>/client/<key>. Verified
+        2026-09-18 against a live Managed Provider account: this is the
+        only placement that works. Sending the same header on the business
+        request instead returns 200 with an empty data array, identical to
+        sending no scope at all.
+        """
         basic = base64.b64encode(f"{self._api_key}:{self._key_secret}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {basic}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        if organization_id:
+            headers["X-Umbrella-OrgId"] = organization_id
         resp = await _request_with_retry(
             "POST",
             TOKEN_URL,
-            headers={
-                "Authorization": f"Basic {basic}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers=headers,
             data={"grant_type": "client_credentials"},
         )
         _raise_for_status(resp)
@@ -160,23 +173,20 @@ class UmbrellaClient:
         return {k: v for k, v in params.items() if v is not None}
 
     async def get(
-        self, path: str, params: dict | None = None, extra_headers: dict | None = None
+        self, path: str, params: dict | None = None, organization_id: str | None = None
     ) -> Any:
         """Issue one authenticated GET against the Umbrella API.
 
-        extra_headers is merged in beneath Authorization, which stays
-        authoritative — a caller must not be able to substitute its own
-        credential for the one minted from this tenant's key/secret. It
-        exists for X-Umbrella-OrgId, which scopes a Managed Provider parent
-        token to one child organization.
+        organization_id scopes the call to one managed customer. It is
+        applied at token-mint time rather than on this request — see
+        _login(). The token is never cached, so the scope cannot leak from
+        one tenant's call into another's.
         """
-        token = await self._login()
-        headers = {k: v for k, v in (extra_headers or {}).items() if v is not None}
-        headers["Authorization"] = f"Bearer {token}"
+        token = await self._login(organization_id)
         resp = await _request_with_retry(
             "GET",
             f"{BASE_URL}{path}",
-            headers=headers,
+            headers={"Authorization": f"Bearer {token}"},
             params=self._clean_params(params),
         )
         _raise_for_status(resp)

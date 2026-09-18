@@ -131,13 +131,20 @@ uv run cisco-umbrella-mcp
 
 `from_`/`to` accept epoch milliseconds, ISO-8601, or a relative offset (e.g. `"-1days"`, `"-7days"`, `"now"`), per Umbrella's reporting API conventions. (`from_` has a trailing underscore because `from` is a Python reserved word — it's mapped to the literal `from` query parameter internally.)
 
-`organization_id` is the managed customer's Umbrella organization ID, sent as the `X-Umbrella-OrgId` request header. It is **required** on every customer-scoped tool rather than optional. Omitting it would run the call at the provider (parent) organization's own scope, which answers `200` with either nothing or the parent's own traffic — indistinguishable downstream from "this customer had no activity in this period". Consumers of these tools state security findings to end clients, so a loud failure is safer than a quiet empty. Resolve an ID with `cisco_umbrella_list_customers`; the three provider-level tools (`list_customers`, `get_providers_console`, `test_connection`) deliberately do not take one.
+`organization_id` is the managed customer's Umbrella organization ID (the `customerId` from `cisco_umbrella_list_customers`). It is sent as `X-Umbrella-OrgId` **on the token exchange**, so Umbrella mints a token whose `sub` claim is `org/<organization_id>/client/<key>`. It is **required** on every customer-scoped tool rather than optional. Omitting it would run the call at the provider (parent) organization's own scope, which answers `200` with either nothing or the parent's own traffic — indistinguishable downstream from "this customer had no activity in this period". Consumers of these tools state security findings to end clients, so a loud failure is safer than a quiet empty. Resolve an ID with `cisco_umbrella_list_customers`; the three provider-level tools (`list_customers`, `get_providers_console`, `test_connection`) deliberately do not take one.
 
 ## Known Gaps
 
 Tested against two real Managed Provider (MSSP) accounts *before* per-customer scoping existed. Of the 10 tools that build had, only **2 were confirmed working with verified real data**; the other 8 were blocked or unverified (empty results don't prove correctness — they just mean no error was raised). The 4 tools added since have not been exercised live at all.
 
-**Per-customer scoping, added 2026-09-18 — premise documented, not yet live-verified.** The empty results below were the expected consequence of running every call at the provider (parent) org's own scope, which carries no client traffic. Cisco documents `X-Umbrella-OrgId` as the way to point a parent organization's access token at one child organization, which is what `organization_id` now sends. **Two placements exist in Cisco's own documentation and they disagree**: the KB article puts the header on the business request (what this build implements), while the getting-started guide puts it on `POST /auth/v2/token` to mint a child-scoped token. If the business-request placement turns out not to work, the change is confined to `UmbrellaClient._login()` — the token leg and the business leg build their headers independently. Confirm with one real call against a managed customer known to have traffic before trusting any of these figures.
+**Per-customer scoping, added 2026-09-18 — live-verified.** The empty results below were the expected consequence of running every call at the provider (parent) org's own scope, which carries no client traffic. `X-Umbrella-OrgId` fixes it, but **only on the token exchange**. Cisco's own docs give two placements and they disagree; tested against a live Managed Provider account with 62 managed customers:
+
+| Placement | Result |
+|---|---|
+| Header on the business request (`GET /reports/v2/activity/dns`) | `200`, **`data: []`** — byte-identical to sending no scope at all |
+| Header on `POST /auth/v2/token`, then call with the minted token | `200`, real rows, different per customer |
+
+The failing placement fails *silently*, which is exactly the hazard this parameter exists to prevent — so this is pinned by `tests/test_tools.py::test_org_scope_is_applied_at_token_mint_not_on_the_business_request`. The scoped token's `sub` claim changes from `org/<parent>/client/<key>` to `org/<customer>/client/<key>`, and two customers return disjoint data. Because the token is minted per call and never cached, the scope cannot leak between tenants.
 
 > **Breaking change, 2026-09-18.** `organization_id` became a required parameter on all 8 customer-scoped tools plus the 4 new ones. Calls that omit it now fail schema validation instead of silently returning parent-scope data. Agent sessions built against the previous signatures will break.
 
@@ -145,7 +152,7 @@ Tested against two real Managed Provider (MSSP) accounts *before* per-customer s
 - `cisco_umbrella_get_providers_console` — real subscription summary on both test accounts (`customerCount: 77` and `customerCount: 47` respectively).
 - `cisco_umbrella_list_customers` — returned 77 real customer organizations (real company names) on account 1. Failed with `403 Access Forbidden` on account 2 — confirmed by decoding that account's token that it genuinely lacks the `admin.customers:read` scope (20 total scopes vs. 76 on account 1). Not a code bug; a real per-key permission difference.
 
-**⚠️ Unverified — returned well-formed but empty results on both accounts, not proven correct:** `cisco_umbrella_get_activity_dns`, `_proxy`, `_firewall`, `_amp_retrospective`, `cisco_umbrella_list_roaming_computers`. Cross-checked the live OpenAPI parameter definitions for Activity DNS directly against Cisco's own docs (pulled the raw spec, not summarized) — `from`/`to`/`limit` are exactly as implemented, no missing/misnamed parameter. The likely explanation is that both test accounts are **Managed Provider root orgs**, which have no direct DNS/proxy/firewall/AMP traffic or roaming computers of their own — that data lives under each *managed customer* org individually. **This is what `organization_id` / `X-Umbrella-OrgId` now addresses** — the earlier conclusion here ("searched Cisco's docs for a scoping parameter/header, found none") was wrong: the header is documented, see the note at the top of this section. These 5 should be re-run against a managed customer with known traffic. If the header turns out not to scope a parent token, the fallback is the provider-side reporting family (`/reports/v2/providers/category-requests-by-org`, `/providers/deployments`, `/providers/categories`), which returns every managed org broken out by org and works with a parent token as-is.
+**⚠️ Unverified — returned well-formed but empty results on both accounts, not proven correct:** `cisco_umbrella_get_activity_dns`, `_proxy`, `_firewall`, `_amp_retrospective`, `cisco_umbrella_list_roaming_computers`. Cross-checked the live OpenAPI parameter definitions for Activity DNS directly against Cisco's own docs (pulled the raw spec, not summarized) — `from`/`to`/`limit` are exactly as implemented, no missing/misnamed parameter. The likely explanation is that both test accounts are **Managed Provider root orgs**, which have no direct DNS/proxy/firewall/AMP traffic or roaming computers of their own — that data lives under each *managed customer* org individually. **Resolved by `organization_id` / `X-Umbrella-OrgId`** — the earlier conclusion here ("searched Cisco's docs for a scoping parameter/header, found none") was wrong. With a child-scoped token, `get_activity_dns` and `list_roaming_computers` return real per-customer data (verified on two customers). The app-discovery three remain blocked by entitlement, which is a separate problem.
 - **`cisco_umbrella_list_applications`, `_protocols`, `_application_categories` (App Discovery) — confirmed blocked, not a code bug.** Reproduced identically on both test accounts and via direct curl with the same tokens (ruling out request-construction issues): `403 Access Forbidden` on account 1, `500`/`403` on account 2. Both tokens' scope lists included `reports.appdiscovery:read`, so this is most likely a package/entitlement restriction (App Discovery as a paid add-on not included in either account's "Umbrella for MSSPs" tier), not a permissions or parameter problem.
 - `cisco_umbrella_get_providers_console` returns a single subscription-summary object, not a list — confirmed via both live tests. Despite the plural name in MSPbots' own configured API list ("Providers Consoles"), double-check this against whatever MSPbots' existing collector expects (array vs single object).
 - The `Applications` app-discovery endpoint's optional parameter list may not be fully exhaustive (a couple of parameters near the end of that endpoint's schema were not fully captured during research) — the ones documented here (`sources`, `identity`, `labels`, `controllable`, `categories`, `subcategory`, `limit`, `offset`) are confirmed real; there may be one or two more not yet added.
@@ -155,3 +162,47 @@ Tested against two real Managed Provider (MSSP) accounts *before* per-customer s
 
 - [Cisco Umbrella API Authentication](https://developer.cisco.com/docs/cloud-security/umbrella-api-authentication/)
 - [Cisco Cloud Security API Documentation (DevNet)](https://developer.cisco.com/docs/cloud-security/)
+
+## Verified API behaviour (live, 2026-09-18)
+
+Measured against a Managed Provider account with 62 managed customers. These
+decide how a consumer must define its metrics, so they are recorded here
+rather than left to be rediscovered.
+
+- **`/reports/v2/categories` works at child-org scope and carries `type`.** 180
+  categories, with six type values — `content` (153), `security` (13–15
+  depending on org, the set includes per-customer entries), `system` (3),
+  `aisupplychain` (3), `customer` (5), `application` (1). It is **not** a
+  security/content binary; filter on `type == "security"` explicitly.
+- **`summaries-by-category` omits categories with no traffic — it never
+  returns a zero.** For one customer it returned 132 of 180 categories and
+  *zero* rows with `requests == 0`. Of that org's 13 security categories only
+  5 appeared; `Command and Control`, `Cryptomining` and
+  `Drive-by Downloads/Exploits` were simply absent. **A consumer that needs to
+  state "no command-and-control requests this month" must union the result
+  against `/reports/v2/categories` and treat an absent row as zero** — reading
+  the summary alone cannot distinguish "no traffic" from "no data".
+- **Category counts do distinguish blocked from allowed.** The `summary`
+  object carries `requests`, `requestsallowed`, `requestsblocked`, plus
+  `applications`, `applicationsallowed`, `applicationsblocked`, `categories`,
+  `domains`, `files`, `filetypes`, `identities`, `identitytypes`,
+  `policycategories`, `policyrequests`.
+- **The deployment endpoints return a bare JSON array** — no envelope, no
+  `meta`, no total, no active count, and no count headers. Active counts must
+  be derived by counting per-item state: `networks` has `status`
+  (`OPEN`/`CLOSED`), `roamingcomputers` has `status` (`Open`/`Encrypted`/
+  `Off`/`Disabled`) and `swgStatus`, `virtualappliances` has `health` and a
+  `state` object.
+- **`networks` and `sites` are different populations, not two names for one
+  thing.** They are separate endpoints with disjoint fields; one test org had
+  0 networks and 1 site, another had 2 networks and 1 site. A site looks like
+  a container — it carries `internalNetworkCount` and `vaCount`.
+- **⚠️ `offset` is unreliable on `summaries-by-category` — do not page with
+  it.** With a 132-row result: `limit=10&offset=0` gave 10 rows,
+  `limit=10&offset=5` gave 5, `limit=10&offset=10` gave **0**, and
+  `limit=100&offset=50` gave 32. A consumer advancing `offset` by `limit`
+  gets one page and then silence, producing a short census that looks
+  complete. **Fetch the whole set in one call with a large `limit`** — the
+  category population is bounded (~180), so `limit=200` covers it. `meta` is
+  `{}` on every reporting response; there is no total to check against. The
+  deployment endpoints page normally with `page`/`limit`.

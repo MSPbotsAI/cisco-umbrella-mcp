@@ -85,7 +85,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/activity/dns",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -149,7 +149,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/activity/proxy",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -209,7 +209,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/activity/firewall",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -265,7 +265,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/activity/amp-retrospective",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -322,7 +322,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/deployments/v2/roamingcomputers",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -377,7 +377,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/appDiscovery/applications",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -424,7 +424,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/appDiscovery/protocols",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -455,7 +455,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/appDiscovery/applicationCategories",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -518,7 +518,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
         try:
             result = await client.get(
                 "/reports/v2/categories",
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -568,9 +568,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
         """Get per-category request counts for a time range.
 
         One row per category with requests, requestsallowed and
-        requestsblocked beside it. Use for "how many malware / C2 /
-        phishing requests this month" rather than paging
-        cisco_umbrella_get_activity_dns row by row.
+        requestsblocked. Categories with no traffic are omitted entirely —
+        an absent category means zero, so cross-check against
+        cisco_umbrella_get_categories before reporting "none". Offset
+        paging is unreliable here; fetch everything in one call with a
+        large limit.
         """
         client = client_factory()
         if client is None:
@@ -593,7 +595,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/reports/v2/summaries-by-category",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -623,7 +625,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/deployments/v2/networks",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -653,7 +655,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             result = await client.get(
                 "/deployments/v2/virtualappliances",
                 params=params,
-                extra_headers={"X-Umbrella-OrgId": organization_id},
+                organization_id=organization_id,
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
