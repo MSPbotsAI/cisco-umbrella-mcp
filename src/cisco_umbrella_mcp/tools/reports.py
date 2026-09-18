@@ -16,10 +16,22 @@ from ._common import NO_TOKEN
 
 _MAX_LIMIT = 200
 
+# Sent as the X-Umbrella-OrgId request header, which scopes a Managed Provider
+# parent token to one child organization. Required rather than optional on
+# purpose: omitting it runs the call at parent scope, which answers 200 with
+# either nothing or the parent's own traffic — indistinguishable downstream
+# from "this customer had no activity". Consumers state security findings to
+# end clients, so a loud failure beats a quiet empty.
+_ORG_ID_DESC = (
+    "Required. The managed customer's organization ID — resolve via "
+    "cisco_umbrella_list_customers, never guess one."
+)
+
 
 def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) -> None:
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_get_activity_dns(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         from_: Annotated[
             str,
             Field(
@@ -70,13 +82,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "timezone": timezone,
         }
         try:
-            result = await client.get("/reports/v2/activity/dns", params=params)
+            result = await client.get(
+                "/reports/v2/activity/dns",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_get_activity_proxy(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         from_: Annotated[
             str,
             Field(
@@ -129,13 +146,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "timezone": timezone,
         }
         try:
-            result = await client.get("/reports/v2/activity/proxy", params=params)
+            result = await client.get(
+                "/reports/v2/activity/proxy",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_get_activity_firewall(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         from_: Annotated[
             str,
             Field(
@@ -184,13 +206,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "timezone": timezone,
         }
         try:
-            result = await client.get("/reports/v2/activity/firewall", params=params)
+            result = await client.get(
+                "/reports/v2/activity/firewall",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_get_activity_amp_retrospective(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         from_: Annotated[
             str,
             Field(
@@ -235,13 +262,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "timezone": timezone,
         }
         try:
-            result = await client.get("/reports/v2/activity/amp-retrospective", params=params)
+            result = await client.get(
+                "/reports/v2/activity/amp-retrospective",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_roaming_computers(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         page: Annotated[int, Field(description="Page number (default 1).", ge=1)] = 1,
         limit: Annotated[
             int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
@@ -287,13 +319,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "lastSyncAfter": last_sync_after,
         }
         try:
-            result = await client.get("/deployments/v2/roamingcomputers", params=params)
+            result = await client.get(
+                "/deployments/v2/roamingcomputers",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_applications(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         sources: Annotated[
             str | None, Field(description='Comma-separated data source filter, e.g. "dns,swg,cdfw".')
         ] = None,
@@ -337,13 +374,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "offset": offset,
         }
         try:
-            result = await client.get("/reports/v2/appDiscovery/applications", params=params)
+            result = await client.get(
+                "/reports/v2/appDiscovery/applications",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_protocols(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         identity: Annotated[
             str | None, Field(description="Filter by identity (e.g. roaming computer or network) ID.")
         ] = None,
@@ -379,13 +421,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             "order": order,
         }
         try:
-            result = await client.get("/reports/v2/appDiscovery/protocols", params=params)
+            result = await client.get(
+                "/reports/v2/appDiscovery/protocols",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def cisco_umbrella_list_application_categories(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
         limit: Annotated[int | None, Field(description="Max results per page (hard cap 200).", ge=1)] = None,
         offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
     ) -> str:
@@ -406,7 +453,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
         params = {"limit": limit, "offset": offset}
         try:
             result = await client.get(
-                "/reports/v2/appDiscovery/applicationCategories", params=params
+                "/reports/v2/appDiscovery/applicationCategories",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
             )
             return dump_json_capped(result)
         except UmbrellaError as e:
@@ -448,6 +497,164 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
             return NO_TOKEN
         try:
             result = await client.get("/reports/v2/providers/consoles")
+            return dump_json_capped(result)
+        except UmbrellaError as e:
+            return e.to_envelope()
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def cisco_umbrella_get_categories(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
+    ) -> str:
+        """List the content and security category catalogue.
+
+        Each entry carries a type field — "security" marks a threat
+        category (Malware, Command and Control, Phishing) as opposed to a
+        content one. Use it to decide which category IDs count as security
+        findings before reading per-category request counts.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        try:
+            result = await client.get(
+                "/reports/v2/categories",
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
+            return dump_json_capped(result)
+        except UmbrellaError as e:
+            return e.to_envelope()
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def cisco_umbrella_get_summaries_by_category(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
+        from_: Annotated[
+            str,
+            Field(
+                description=(
+                    "Required. Start of the time range. Accepts epoch "
+                    'milliseconds, ISO-8601 (e.g. "2024-01-01T00:00:00Z"), or a '
+                    'relative offset (e.g. "-1days", "-30days", "now").'
+                )
+            ),
+        ],
+        to: Annotated[
+            str,
+            Field(description="Required. End of the time range. Same accepted formats as from_."),
+        ],
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+        offset: Annotated[int | None, Field(description="Pagination offset.", ge=0)] = None,
+        categories: Annotated[
+            str | None, Field(description="Comma-separated category ID filter.")
+        ] = None,
+        domains: Annotated[str | None, Field(description="Comma-separated domain filter.")] = None,
+        identityids: Annotated[
+            str | None, Field(description="Comma-separated identity ID filter.")
+        ] = None,
+        verdict: Annotated[
+            str | None, Field(description='Filter by verdict, e.g. "allowed" or "blocked".')
+        ] = None,
+        threats: Annotated[
+            str | None, Field(description="Comma-separated threat name filter.")
+        ] = None,
+        threattypes: Annotated[
+            str | None, Field(description="Comma-separated threat type filter.")
+        ] = None,
+        filternoisydomains: Annotated[
+            bool | None, Field(description="Exclude domains flagged as noisy.")
+        ] = None,
+    ) -> str:
+        """Get per-category request counts for a time range.
+
+        One row per category with requests, requestsallowed and
+        requestsblocked beside it. Use for "how many malware / C2 /
+        phishing requests this month" rather than paging
+        cisco_umbrella_get_activity_dns row by row.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        limit = min(limit, _MAX_LIMIT)
+        params = {
+            "from": from_,
+            "to": to,
+            "limit": limit,
+            "offset": offset,
+            "categories": categories,
+            "domains": domains,
+            "identityids": identityids,
+            "verdict": verdict,
+            "threats": threats,
+            "threattypes": threattypes,
+            "filternoisydomains": filternoisydomains,
+        }
+        try:
+            result = await client.get(
+                "/reports/v2/summaries-by-category",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
+            return dump_json_capped(result)
+        except UmbrellaError as e:
+            return e.to_envelope()
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def cisco_umbrella_list_networks(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
+        page: Annotated[int, Field(description="Page number (default 1).", ge=1)] = 1,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+    ) -> str:
+        """List the networks registered for this organization.
+
+        Each entry carries its deployment state (status, isVerified,
+        isDynamic). One of the three deployment kinds, alongside
+        cisco_umbrella_list_roaming_computers and
+        cisco_umbrella_list_virtual_appliances.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        limit = min(limit, _MAX_LIMIT)
+        params = {"page": page, "limit": limit}
+        try:
+            result = await client.get(
+                "/deployments/v2/networks",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
+            return dump_json_capped(result)
+        except UmbrellaError as e:
+            return e.to_envelope()
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def cisco_umbrella_list_virtual_appliances(
+        organization_id: Annotated[str, Field(description=_ORG_ID_DESC)],
+        page: Annotated[int, Field(description="Page number (default 1).", ge=1)] = 1,
+        limit: Annotated[
+            int, Field(description="Max results per page (default 100, hard cap 200).", ge=1)
+        ] = 100,
+    ) -> str:
+        """List the virtual appliances deployed for this organization.
+
+        Each entry carries health and a state object (syncing, connector
+        connectivity, redundancy). One of the three deployment kinds,
+        alongside cisco_umbrella_list_networks and
+        cisco_umbrella_list_roaming_computers.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        limit = min(limit, _MAX_LIMIT)
+        params = {"page": page, "limit": limit}
+        try:
+            result = await client.get(
+                "/deployments/v2/virtualappliances",
+                params=params,
+                extra_headers={"X-Umbrella-OrgId": organization_id},
+            )
             return dump_json_capped(result)
         except UmbrellaError as e:
             return e.to_envelope()

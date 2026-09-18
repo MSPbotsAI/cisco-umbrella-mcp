@@ -159,12 +159,24 @@ class UmbrellaClient:
             return {}
         return {k: v for k, v in params.items() if v is not None}
 
-    async def get(self, path: str, params: dict | None = None) -> Any:
+    async def get(
+        self, path: str, params: dict | None = None, extra_headers: dict | None = None
+    ) -> Any:
+        """Issue one authenticated GET against the Umbrella API.
+
+        extra_headers is merged in beneath Authorization, which stays
+        authoritative — a caller must not be able to substitute its own
+        credential for the one minted from this tenant's key/secret. It
+        exists for X-Umbrella-OrgId, which scopes a Managed Provider parent
+        token to one child organization.
+        """
         token = await self._login()
+        headers = {k: v for k, v in (extra_headers or {}).items() if v is not None}
+        headers["Authorization"] = f"Bearer {token}"
         resp = await _request_with_retry(
             "GET",
             f"{BASE_URL}{path}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
             params=self._clean_params(params),
         )
         _raise_for_status(resp)
