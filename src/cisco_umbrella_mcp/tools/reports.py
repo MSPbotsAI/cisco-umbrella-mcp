@@ -567,12 +567,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], UmbrellaClient | None]) 
     ) -> str:
         """Get per-category request counts for a time range.
 
-        One row per category with requests, requestsallowed and
-        requestsblocked. Categories with no traffic are omitted entirely —
-        an absent category means zero, so cross-check against
-        cisco_umbrella_get_categories before reporting "none". Offset
-        paging is unreliable here; fetch everything in one call with a
-        large limit.
+        One row per category: requests, requestsallowed, requestsblocked.
+        Always pass categories — unfiltered results overrun the size cap
+        and the security rows are the ones dropped; get their IDs from
+        cisco_umbrella_get_categories. Zero-traffic categories are omitted
+        rather than returned as zero. Don't page with offset.
         """
         client = client_factory()
         if client is None:

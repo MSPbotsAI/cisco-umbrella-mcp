@@ -197,6 +197,23 @@ rather than left to be rediscovered.
   thing.** They are separate endpoints with disjoint fields; one test org had
   0 networks and 1 site, another had 2 networks and 1 site. A site looks like
   a container — it carries `internalNetworkCount` and `vaCount`.
+- **⚠️ `summaries-by-category` must be called with `categories`, or the
+  security rows are silently lost.** Unfiltered, one customer's month came
+  back as 19,902 characters — over the 20,000-char response cap — so the
+  wrapper truncated it to 53 of 132 rows and set `truncated: true`. The
+  security categories sort last and **none of them survived**. Passing the 15
+  security category IDs as `categories` returned 1,821 characters, 5 rows, no
+  truncation. The working flow is two calls:
+
+  ```
+  cisco_umbrella_get_categories(organization_id)      -> keep ids where type == "security"
+  cisco_umbrella_get_summaries_by_category(organization_id, from_, to,
+                                           categories="<those ids, comma-separated>")
+  ```
+
+  Measured on one customer over 30 days: Malware 118 requests / 118 blocked,
+  Newly Seen Domains 14/14, DNS Tunneling VPN 10/10, Dynamic DNS 8/0,
+  Phishing 1/1.
 - **⚠️ `offset` is unreliable on `summaries-by-category` — do not page with
   it.** With a 132-row result: `limit=10&offset=0` gave 10 rows,
   `limit=10&offset=5` gave 5, `limit=10&offset=10` gave **0**, and
